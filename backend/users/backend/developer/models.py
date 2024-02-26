@@ -1,13 +1,11 @@
 import uuid
 
+from base.models import BaseAbstractUser, BaseGroup, BasePermission, BasePermissionMixin
+from common.models import ContactType, Country
 from django.contrib.auth.hashers import make_password
-from django.contrib.auth.models import PermissionsMixin, UserManager
+from django.contrib.auth.models import UserManager
 from django.db import models
-
-from base.models import BaseAbstractUser, BasePermission, BaseGroup, BasePermissionMixin
 from django.utils.translation import gettext_lazy as _
-
-from common.models import Country, ContactType
 
 
 class DeveloperPermission(BasePermission):
@@ -20,13 +18,14 @@ class DeveloperPermission(BasePermission):
 class DeveloperPermissionMixin(BasePermissionMixin):
     def has_perm(self, perm, obj=None):
         queryset = self.user_permissions.filter(codename=perm) | DeveloperPermission.objects.filter(
-            developergroup__companyuser=self, codename=perm
+            developergroup__companyuser=self,
+            codename=perm,
         )
         return queryset.exists()
 
     def get_all_permissions(self, obj=None):
         return self.user_permissions.all() | DeveloperPermission.objects.filter(
-            developergroup__companyuser=self
+            developergroup__companyuser=self,
         )
 
     class Meta:
@@ -77,7 +76,6 @@ class CompanyUser(BaseAbstractUser, DeveloperPermissionMixin):
         null=True,
         verbose_name=_("Developer country"),
     )
-    avatar = models.ImageField(blank=True, verbose_name=_("Developer avatar"))
     is_active = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
     groups = models.ManyToManyField(
@@ -86,7 +84,7 @@ class CompanyUser(BaseAbstractUser, DeveloperPermissionMixin):
         blank=True,
         help_text=_(
             "The groups this user belongs to. A user will get all permissions "
-            "granted to each of their groups."
+            "granted to each of their groups.",
         ),
         related_name="companyuser_set",
         related_query_name="companyuser",
@@ -147,6 +145,7 @@ class Company(models.Model):
     is_confirmed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Company created date"))
     is_active = models.BooleanField(default=True)
+    is_banned = models.BooleanField(default=False)
 
     def __str__(self):
         return self.title
@@ -164,12 +163,14 @@ class CompanyContact(models.Model):
         verbose_name=_("type contact"),
     )
     company = models.ForeignKey(
-        Company, verbose_name=_("company contacts"), on_delete=models.CASCADE
+        Company,
+        verbose_name=_("company contacts"),
+        on_delete=models.CASCADE,
     )
     value = models.CharField(max_length=150, verbose_name=_("value contact"), default="")
 
     def __str__(self):
-        return f"{self.type__name}-{self.value}"
+        return f"{self.type.name}-{self.value}"
 
     class Meta:
         db_table = "company_contact"

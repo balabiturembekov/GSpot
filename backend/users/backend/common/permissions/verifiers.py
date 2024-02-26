@@ -1,7 +1,7 @@
 from administrator.models import Admin
 from base.validators import AbstractUserVerify
 from customer.models import CustomerUser
-from developer.models import CompanyUser, Company
+from developer.models import Company, CompanyUser
 
 
 class IsActiveUserVerify(AbstractUserVerify):
@@ -46,7 +46,7 @@ class CustomerScopeUserVerify(AbstractUserVerify):
 class CompanyOwnerVerify(AbstractUserVerify):
     def verify(self, user) -> bool:
         if isinstance(user, CompanyUser):
-            return Company.objects.filter(created_by=user).exists()
+            return user.is_superuser or Company.objects.filter(created_by=user).exists()
         return False
 
 

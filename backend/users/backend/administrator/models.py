@@ -1,11 +1,17 @@
+from base.models import (
+    BaseAbstractUser,
+    BaseGroup,
+    BaseModerate,
+    BasePermission,
+    BasePermissionMixin,
+)
+from common.models import Country
+from customer.models import CustomerUser
+from developer.models import Company, CompanyUser, DeveloperGroup, DeveloperPermission
 from django.contrib.auth.hashers import make_password
-from django.contrib.auth.models import PermissionsMixin, UserManager
+from django.contrib.auth.models import UserManager
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-
-from base.models import BaseAbstractUser, BasePermission, BaseGroup, BasePermissionMixin
-from common.models import Country
-from developer.models import DeveloperPermission, DeveloperGroup
 
 
 class AdminPermission(BasePermission):
@@ -20,10 +26,11 @@ class AdminPermissionMixin(BasePermissionMixin):
         if self.is_active and self.is_superuser:
             return True
         user_perm = self.user_permissions.filter(codename=perm) | AdminPermission.objects.filter(
-            admingroup__admin=self, codename=perm
+            admingroup__admin=self,
+            codename=perm,
         )
         dev_perm = self.developer_permissions.filter(
-            codename=perm
+            codename=perm,
         ) | DeveloperPermission.objects.filter(developergroup__admin=self, codename=perm)
         return user_perm.exists() or dev_perm.exists()
 
@@ -72,7 +79,6 @@ class AdminManager(UserManager):
 
 
 class Admin(BaseAbstractUser, AdminPermissionMixin):
-    avatar = models.ImageField(null=True, blank=True)
     is_superuser = models.BooleanField(default=False)
     country = models.ForeignKey(
         Country,
@@ -86,7 +92,7 @@ class Admin(BaseAbstractUser, AdminPermissionMixin):
         blank=True,
         help_text=_(
             "The groups this user belongs to. A user will get all permissions "
-            "granted to each of their groups."
+            "granted to each of their groups.",
         ),
         related_name="admin_set",
         related_query_name="admin",
@@ -116,14 +122,62 @@ class Admin(BaseAbstractUser, AdminPermissionMixin):
         related_name="admin_set",
         related_query_name="admin",
     )
+    is_staff = models.BooleanField(default=True)
 
     @property
     def permissions_codename(self) -> list[str]:
         return list(self.user_permissions.values_list("codename", flat=True)) + list(
-            self.developer_permissions.values_list("codename", flat=True)
+            self.developer_permissions.values_list("codename", flat=True),
         )
 
     objects = AdminManager()
 
     class Meta:
         db_table = "admin"
+
+
+class CustomerModerate(BaseModerate):
+    customer = models.ForeignKey(
+        CustomerUser,
+        on_delete=models.CASCADE,
+        related_name="moderate_reasons",
+    )
+    admin = models.ForeignKey(Admin, on_delete=models.SET_NULL, null=True)
+
+    def __str__(self):
+        return f"{self.customer}: {self.reason}"
+
+    class Meta:
+        db_table = "customer_moderate_reasons"
+        verbose_name = _("Customer moderate reason")
+        verbose_name_plural = _("Customers moderate reasons")
+
+
+class CompanyUserModerate(BaseModerate):
+    company_user = models.ForeignKey(
+        CompanyUser,
+        on_delete=models.CASCADE,
+        related_name="moderate_reasons",
+    )
+    admin = models.ForeignKey(Admin, on_delete=models.SET_NULL, null=True)
+
+    def __str__(self):
+        return f"{self.company_user}: {self.reason}"
+
+    class Meta:
+        db_table = "developer_moderate_reasons"
+        verbose_name = _("Developer moderate reason")
+        verbose_name_plural = _("Developers moderate reasons")
+
+
+class CompanyModerate(BaseModerate):
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="moderate_reasons")
+    admin = models.ForeignKey(Admin, on_delete=models.SET_NULL, null=True)
+
+    def __str__(self):
+        return f"{self.company}: {self.reason}"
+
+    class Meta:
+        db_table = "company_moderate_reasons"
+        verbose_name = _("Company moderate reason")
+        verbose_name_plural = _("Company moderate reasons")
